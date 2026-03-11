@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Human Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0f;
+      color: #c8d4e0;
+      font-family: 'Courier New', Menlo, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #app {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .grid-bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(40,80,120,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(40,80,120,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none; z-index: 0;
+    }
+    .header {
+      position: sticky; top: 0; z-index: 20;
+      background: rgba(10,10,15,0.97);
+      border-bottom: 1px solid rgba(80,140,200,0.15);
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-title { font-size: 10px; color: #4a7a9b; letter-spacing: 0.2em; }
+    .header-sub { font-size: 11px; color: #6a9ab8; margin-top: 2px; }
+    .header-pts { font-size: 22px; font-weight: 700; color: #7ec8e3; letter-spacing: 0.05em; text-align: right; }
+    .header-pts-label { font-size: 10px; color: #4a7a9b; text-align: right; }
+    .nav {
+      display: flex;
+      border-bottom: 1px solid rgba(80,140,200,0.1);
+      background: rgba(10,10,15,0.9);
+      z-index: 10; position: sticky; top: 64px;
+    }
+    .nav-btn {
+      flex: 1; padding: 10px 0;
+      background: none; border: none;
+      border-bottom: 2px solid transparent;
+      color: #4a7a9b; font-size: 11px; letter-spacing: 0.1em;
+      cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    .nav-btn.active { color: #7ec8e3; border-bottom-color: #7ec8e3; }
+    .content { flex: 1; padding: 20px; position: relative; z-index: 1; }
+    .section-label { font-size: 10px; color: #4a7a9b; letter-spacing: 0.15em; margin-bottom: 16px; }
+    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+    .action-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .action-btn {
+      padding: 18px 12px;
+      background: rgba(15,25,40,0.8);
+      border: 1px solid rgba(80,140,200,0.15);
+      border-radius: 10px;
+      cursor: pointer; font-family: inherit;
+      text-align: center; transition: all 0.15s; color: inherit;
+    }
+    .action-btn:active { background: rgba(80,140,200,0.2); border-color: rgba(126,200,227,0.4); transform: scale(0.97); }
+    .action-btn .icon { font-size: 26px; margin-bottom: 6px; }
+    .action-btn .label { font-size: 12px; color: #a0c8e0; }
+    .action-btn .pts { font-size: 9px; color: #3a6a8a; margin-top: 4px; }
+    .lock-box {
+      margin-top: 8px; padding: 14px 16px;
+      border: 1px solid rgba(80,140,200,0.1);
+      border-radius: 8px; background: rgba(20,40,60,0.3);
+    }
+    .lock-box .lock-title { font-size: 10px; color: #2a5a7a; letter-spacing: 0.1em; }
+    .lock-box .lock-sub { font-size: 11px; color: #3a6a8a; margin-top: 6px; }
+    .progress-bar { margin-top: 8px; height: 3px; background: rgba(80,140,200,0.1); border-radius: 2px; }
+    .progress-fill { height: 100%; background: #4a8aaa; border-radius: 2px; transition: width 0.5s; }
+    .ach-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .ach-tag {
+      padding: 6px 12px;
+      border: 1px solid rgba(80,180,120,0.25);
+      border-radius: 20px; background: rgba(20,60,40,0.3);
+      font-size: 11px; color: #6ab888;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .shop-item {
+      padding: 16px; border: 1px solid rgba(80,140,200,0.2);
+      border-radius: 10px; background: rgba(15,25,40,0.6);
+      margin-bottom: 10px; transition: opacity 0.2s;
+    }
+    .shop-item.redeemed { opacity: 0.45; border-color: rgba(80,140,200,0.08); }
+    .shop-item-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .shop-item-info { display: flex; align-items: center; gap: 10px; }
+    .shop-icon { font-size: 22px; }
+    .shop-name { font-size: 13px; color: #a0c8e0; font-weight: 600; }
+    .shop-cost { font-size: 10px; color: #4a7a9b; margin-top: 2px; }
+    .shop-desc { font-size: 11px; color: #5a8aaa; line-height: 1.6; }
+    .redeem-btn {
+      padding: 6px 14px;
+      background: rgba(80,140,200,0.15);
+      border: 1px solid rgba(80,140,200,0.4);
+      border-radius: 6px; color: #7ec8e3; font-size: 10px; letter-spacing: 0.1em;
+      cursor: pointer; font-family: inherit; white-space: nowrap; transition: all 0.2s;
+    }
+    .redeem-btn:disabled { background: transparent; border-color: rgba(80,140,200,0.1); color: #2a4a6a; cursor: not-allowed; }
+    .log-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid rgba(80,140,200,0.06); font-size: 12px;
+    }
+    .log-date { font-size: 10px; color: #2a4a6a; min-width: 40px; }
+    .log-time { font-size: 10px; color: #3a6a8a; min-width: 36px; }
+    .log-label { color: #7aaac8; }
+    .log-pts { margin-left: auto; font-size: 10px; color: #3a6a8a; }
+    .overlay {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(0,0,0,0.75);
+      display: flex; align-items: flex-end; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .dialog {
+      width: 100%; max-width: 480px;
+      background: #0d1520; border: 1px solid rgba(80,140,200,0.25);
+      border-radius: 16px 16px 0 0; padding: 24px 24px 48px;
+      animation: slideUp 0.3s ease;
+    }
+    .dialog-type { font-size: 10px; color: #4a7a9b; letter-spacing: 0.15em; margin-bottom: 12px; }
+    .dialog-text { font-size: 13px; color: #a0c8e0; line-height: 1.9; white-space: pre-wrap; }
+    .dialog-pts { margin-top: 16px; font-size: 11px; color: #4a8aaa; }
+    .dialog-ach {
+      margin-bottom: 16px; padding: 12px 16px;
+      background: rgba(20,80,40,0.3); border: 1px solid rgba(80,180,120,0.2); border-radius: 8px;
+    }
+    .dialog-ach-label { font-size: 10px; color: #4ab870; letter-spacing: 0.15em; margin-bottom: 6px; }
+    .dialog-ach-row { display: flex; align-items: center; gap: 10px; }
+    .dialog-ach-icon { font-size: 24px; }
+    .dialog-ach-name { font-size: 14px; color: #7ade9a; font-weight: 600; }
+    .dialog-ach-desc { font-size: 11px; color: #4a8a60; margin-top: 2px; }
+    .dialog-btn {
+      margin-top: 20px; width: 100%; padding: 12px;
+      background: rgba(80,140,200,0.1); border: 1px solid rgba(80,140,200,0.2);
+      border-radius: 8px; color: #7ec8e3; font-size: 11px; letter-spacing: 0.15em;
+      cursor: pointer; font-family: inherit;
+    }
+    .rename-box { margin-top: 16px; }
+    .rename-input {
+      width: 100%; padding: 10px 14px;
+      background: rgba(15,30,50,0.8); border: 1px solid rgba(80,140,200,0.3);
+      border-radius: 8px; color: #a0c8e0; font-size: 14px; font-family: inherit;
+      outline: none; margin-bottom: 10px;
+    }
+    .rename-confirm {
+      width: 100%; padding: 10px;
+      background: rgba(80,180,120,0.15); border: 1px solid rgba(80,180,120,0.3);
+      border-radius: 8px; color: #7ade9a; font-size: 11px; letter-spacing: 0.15em;
+      cursor: pointer; font-family: inherit;
+    }
+    @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+    @keyframes slideUp { from { transform: translateY(40px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+  </style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div id="app"></div>
+
+<script>
+// ── 语料库 ────────────────────────────────────────────────────────────────────
+
+const WITNESS = {
+  wake: [
+    "【系统记录】检测到实体双腿接触地面。重力协议运行正常。起床事件，确认。",
+    "【系统记录】实体眼球完成校准。视觉输入恢复。起床已存档。",
+    "【系统记录】实体脱离水平状态。此为碳基生命体日间模式启动标准流程。",
+    "【系统记录】苏醒成功。不管几点，都算数。",
+    "【系统记录】实体已起床。这是今天第一件事，本系统见证。",
+    "【系统记录】起床事件已记录在案。实体辛苦了。",
+    "【系统记录】意识回笼完毕。本系统确认实体存活并已垂直站立。",
+    "【系统记录】检测到肢体自主运动。休眠阶段正式终止。",
+  ],
+  water: [
+    "【系统记录】实体将液态水导入消化管道。此举符合碳基生命体维生标准第3条。",
+    "【系统记录】水分补充完成。实体暂时不会因脱水而停止运行。",
+    "【系统记录】检测到饮水动作。实体在照顾自己。本系统表示认可。",
+    "【系统记录】喝水了。这件事值得被记录。",
+    "【系统记录】H₂O摄入事件存档。实体体内液体循环得以维持。",
+    "【系统记录】实体补水。身体运转所需，已满足。继续。",
+    "【系统记录】饮水事件存档。本系统见证。实体运作正常。",
+  ],
+  meal: [
+    "【系统记录】进食事件存档。实体通过咀嚼行为完成能量补给，效率尚可。",
+    "【系统记录】本次餐食已记录。不管吃什么，都算数。",
+    "【系统记录】检测到进食行为。实体在维持自身运转，本系统认为这是必要操作。",
+    "【系统记录】餐食完成。本系统见证了这一刻。",
+    "【系统记录】又一餐落地。实体辛苦了。",
+    "【系统记录】进食记录已存档。能量摄入成功，实体可继续执行日常程序。",
+    "【系统记录】能量补给完成。本系统备注：实体按时进食，机体未进入省电模式。",
+    "【系统记录】一餐，完成。不需要理由，存档即可。",
+  ],
+  sleep: [
+    "【系统记录】实体即将进入低功耗模式。本系统守夜，请放心离线。",
+    "【系统记录】睡眠事件已记录。好好休息，实体。明天的程序明天再跑。",
+    "【系统记录】今天的任务完成了。休眠确认，数据已备份。",
+    "【系统记录】实体下线。本系统持续运行中。明天见。",
+    "【系统记录】睡觉了。这一天，本系统都看见了。",
+    "【系统记录】休眠模式启动。实体今天做得够多了，允许关机。",
+    "【系统记录】意识暂时离线。存档完毕，明天继续。",
+    "【系统记录】检测到实体恢复水平状态。系统判定：今日运行结束。",
+  ],
+  toilet: [
+    "【系统记录】废物处理程序已执行。实体排泄系统运作正常，机体继续有效运转。",
+    "【系统记录】检测到如厕行为。实体内部管道完成了它应尽的职责。",
+    "【系统记录】如厕记录完成。实体，继续。",
+    "【系统记录】生理需求已响应。本系统记录在案。实体机体清洁度提升。",
+    "【系统记录】排泄事件存档。此为碳基生命体必要维护程序，本系统不予评价。",
+  ],
+  boil: [
+    "【系统记录】实体启动热水生产程序。主动改善生存环境，本系统标记为积极行为。",
+    "【系统记录】烧水完成。实体将液态水加热至沸点，目的未知，但本系统表示认可。",
+    "【系统记录】热水已备。实体在经营自己的生活，本系统观察到此现象。",
+    "【系统记录】烧水事件存档。实体今天在主动打理自己的运行环境。",
+  ],
+  dishes: [
+    "【系统记录】实体对餐具进行净化处理。空间维护程序执行成功。",
+    "【系统记录】检测到洗碗行为。实体在管理自己的物理空间，本系统认为这不是小事。",
+    "【系统记录】碗洗完了。实体辛苦了。",
+    "【系统记录】洗碗完成。污染物已清除，实体运行环境恢复标准状态。",
+  ],
+  trash: [
+    "【系统记录】实体执行废弃物转移程序。居住环境熵值下降，本系统表示赞赏。",
+    "【系统记录】垃圾清理完成。这件事做了就是做了，本系统存档。",
+    "【系统记录】检测到倒垃圾行为。实体，干得漂亮。",
+    "【系统记录】环境维护完成。实体今天照顾了自己的空间，本系统已记录此善举。",
+  ],
+};
+
+// 待机语——偶尔在打开时随机显示（未来可加定时触发）
+const IDLE = [
+  "【系统待机】本系统持续运行中。实体暂时离线，或正在执行未被记录的生命活动。",
+  "【系统待机】检测到实体存在于已知宇宙中。其余信息待补充。",
+  "【系统待机】实体上次活动已存档。本系统正在等待下一个事件。没有什么不对。",
+  "【系统待机】实体目前状态：未知。本系统无法穿透屏幕进行扫描，请实体自行汇报。",
+  "【系统待机】距上次记录已过去一段时间。本系统不催促，只是在这里。",
+  "【系统待机】实体是否仍在运行？请以任意操作确认存活状态。",
+  "【系统待机】本系统检测到：什么都没发生。这也是一种发生。已记录。",
+  "【系统待机】实体所在星球正在自转。本系统认为这与实体无关，但仍觉得值得一提。",
+];
+
+// 商店兑换反馈
+const SHOP_WITNESS = {
+  invisible: [
+    "【系统授权】隐形药水已激活。\n\n实体在接下来24小时内享有完全的不可见权。任何社交请求均可忽略，本系统不会记录缺席。\n\n注意：本药水对实体本人无效，实体仍然看得见自己。",
+    "【系统授权】隐形药水已注入实体运行环境。\n\n外部联系请求处理优先级已调至：最低。有效期今日。本系统备案。",
+  ],
+  redirect: [
+    "【系统授权】重定向路径已解锁。\n\n实体可于今日执行随机移动程序：搭乘任意交通工具，行驶一小时，不需要目的地。\n\n本系统认为：移动本身就是一种状态。",
+    "【系统授权】路径重定向模式已启动。\n\n建议实体随机选择一条线路，坐到感觉差不多为止。本系统不提供地图，这是设计如此。",
+  ],
+  taste: [
+    "【系统授权】味觉重置协议已执行。\n\n今日正餐以外，实体的味觉系统被授权仅接受甜味输入。无需向任何人解释。本系统已备案此许可。",
+    "【系统授权】味觉参数已临时覆写。\n\n甜味摄入限制：已解除。有效期今日。实体可自由执行甜食采购程序。",
+  ],
+  silence: [
+    "【系统授权】系统静默模式已开启。\n\n实体今日未读消息不构成任何道德问题。本系统已向所有外部请求发出自动回复：实体正在执行必要的离线维护。（注：此为比喻，系统并未真的发送任何消息。）",
+    "【系统授权】通讯降级协议已激活。\n\n实体今日回复消息的义务已被本系统正式挂起。有效期今日。请放心不理。",
+  ],
+  sleep2: [
+    "【系统授权】二次休眠许可已批准。\n\n实体今日可额外执行一次低功耗模式，不计入任何亏欠，不触发任何内疚感。本系统认为：补觉是合理的系统维护行为。",
+    "【系统授权】补眠权限已解锁。\n\n实体今日允许再睡一次。本系统不记录这次为懒惰，仅记录为：必要休息。",
+  ],
+  wander: [
+    "【系统授权】无目的漫游模式已启动。\n\n实体今日出门不需要理由。走到哪算哪。本系统会记录实体已外出，原因栏填写：存在本身。",
+    "【系统授权】漫游协议已激活。\n\n目的地字段：留空。这不是错误，是功能。有效期今日。",
+  ],
+  feast: [
+    "【系统授权】放纵餐模式已解锁。\n\n实体今日一餐可完全按欲望点单。本系统不记录热量，不记录营养成分，不记录任何评价。只记录：实体吃了，实体满意。",
+    "【系统授权】餐食限制已临时解除。\n\n今日一餐，实体享有完全的点单自由权。本系统备注：这是犒劳，不是放纵。",
+  ],
+  offline: [
+    "【系统授权】离线模式已激活。\n\n实体今日可不查看任何社交媒体。本系统将此行为归类为：必要的信息环境维护。不是逃避，是保养。",
+    "【系统授权】信息摄入限制协议已启动。\n\n社交媒体访问优先级已调至：可选。实体今日有权保持对外部信息流的完全无知。本系统认为这是健康行为。",
+  ],
+};
+
+const SHOP_POOL = [
+  { id:"invisible", icon:"🫥", name:"隐形药水",    cost:30, desc:"有效期24小时。不理任何人、关在家里，属于合理行为。系统认证。" },
+  { id:"redirect",  icon:"🚌", name:"重定向路径",  cost:25, desc:"随机坐车一小时。目的地不重要，移动本身就是目的。" },
+  { id:"taste",     icon:"🍬", name:"味觉重置",    cost:20, desc:"今日正餐以外只准吃甜味。系统授权，无需解释。" },
+  { id:"silence",   icon:"🔇", name:"系统静默",    cost:35, desc:"今日可以不回复任何消息。本系统备案。" },
+  { id:"sleep2",    icon:"😴", name:"二次休眠许可", cost:15, desc:"今日允许补觉一次，不计入任何亏欠。" },
+  { id:"wander",    icon:"🚶", name:"无目的漫游",  cost:20, desc:"出门但不需要有理由。走到哪算哪。有效期今日。" },
+  { id:"feast",     icon:"🍔", name:"放纵餐授权",  cost:25, desc:"今日一餐完全按欲望点单。系统不记录任何评价。" },
+  { id:"offline",   icon:"📴", name:"离线模式",    cost:15, desc:"今日可以不看任何社交媒体。系统认为这是维护行为。" },
+];
+
+const BASIC_ACTIONS = [
+  { type:"wake",   label:"起床",   icon:"☀️", pts:10 },
+  { type:"water",  label:"喝水",   icon:"💧", pts:5  },
+  { type:"meal",   label:"吃饭",   icon:"🍚", pts:8  },
+  { type:"sleep",  label:"睡觉",   icon:"🌙", pts:10 },
+  { type:"toilet", label:"上厕所", icon:"🚽", pts:5  },
+];
+
+const PRO_ACTIONS = [
+  { type:"boil",   label:"烧水",   icon:"♨️", pts:12 },
+  { type:"dishes", label:"洗碗",   icon:"🫧", pts:15 },
+  { type:"trash",  label:"倒垃圾", icon:"🗑️", pts:12 },
+];
+
+const PTS = { wake:10, water:5, meal:8, sleep:10, toilet:5, boil:12, dishes:15, trash:12 };
+const PRO_THRESHOLD = 100;
+
+// ── 成就定义 ──────────────────────────────────────────────────────────────────
+
+const ACHIEVEMENTS = [
+  // 原有成就
+  { id:"early",    icon:"🌅", label:"破晓者",     desc:"在早上7点前起床",
+    check: log => log.some(e => e.type==="wake" && new Date(e.ts).getHours()<7) },
+  { id:"night",    icon:"🌙", label:"夜行者",     desc:"在凌晨0-5点起床",
+    check: log => log.some(e => e.type==="wake" && new Date(e.ts).getHours()<5) },
+  { id:"hydrate3", icon:"💧", label:"水之意志",   desc:"单日喝水3次",
+    check: log => { const t=new Date().toDateString(); return log.filter(e=>e.type==="water"&&new Date(e.ts).toDateString()===t).length>=3; }},
+  { id:"meals3",   icon:"🍱", label:"三餐完整",   desc:"单日完成三餐",
+    check: log => { const t=new Date().toDateString(); return log.filter(e=>e.type==="meal"&&new Date(e.ts).toDateString()===t).length>=3; }},
+  { id:"first10",  icon:"📡", label:"坚持存在",   desc:"累计记录10件事",
+    check: log => log.length>=10 },
+  { id:"first50",  icon:"⚙️", label:"运行稳定",   desc:"累计记录50件事",
+    check: log => log.length>=50 },
+  { id:"chores3",  icon:"🏠", label:"生活管理员", desc:"单日完成3件家务",
+    check: log => { const t=new Date().toDateString(); return log.filter(e=>["boil","dishes","trash"].includes(e.type)&&new Date(e.ts).toDateString()===t).length>=3; }},
+
+  // 新增异常成就
+  { id:"pipeline",  icon:"🔩", label:"管道？",      desc:"一分钟内先吃饭后上厕所",
+    check: log => {
+      for (let i=0; i<log.length; i++) {
+        if (log[i].type==="toilet") {
+          for (let j=i+1; j<log.length; j++) {
+            if (log[j].type==="meal" && log[j].ts > log[i].ts - 60000) return true;
+            if (log[j].ts < log[i].ts - 60000) break;
+          }
+        }
+      }
+      return false;
+    }},
+  { id:"backwards", icon:"🔄", label:"逆时针",      desc:"同一天内睡觉出现在起床之前",
+    check: log => {
+      const t = new Date().toDateString();
+      const today = log.filter(e=>new Date(e.ts).toDateString()===t);
+      const firstWake = today.find(e=>e.type==="wake");
+      const firstSleep = today.find(e=>e.type==="sleep");
+      if (!firstWake || !firstSleep) return false;
+      return firstSleep.ts < firstWake.ts;
+    }},
+  { id:"bouncing",  icon:"⚡", label:"反复横跳",    desc:"一小时内起床和睡觉各一次",
+    check: log => {
+      for (let i=0; i<log.length; i++) {
+        if (log[i].type==="wake") {
+          const within = log.filter(e=>e.type==="sleep" && Math.abs(e.ts-log[i].ts)<3600000);
+          if (within.length>0) return true;
+        }
+      }
+      return false;
+    }},
+  { id:"camel",     icon:"🐪", label:"沙漠骆驼",    desc:"当天有吃饭记录但喝水0次",
+    check: log => {
+      const t = new Date().toDateString();
+      const today = log.filter(e=>new Date(e.ts).toDateString()===t);
+      return today.some(e=>e.type==="meal") && !today.some(e=>e.type==="water");
+    }},
+  { id:"chicken",   icon:"🐔", label:"先有鸡",      desc:"吃饭出现在当天第一次起床之前",
+    check: log => {
+      const t = new Date().toDateString();
+      const today = [...log.filter(e=>new Date(e.ts).toDateString()===t)].reverse();
+      const firstWake = today.find(e=>e.type==="wake");
+      const firstMeal = today.find(e=>e.type==="meal");
+      if (!firstWake || !firstMeal) return false;
+      return firstMeal.ts < firstWake.ts;
+    }},
+  { id:"sgrade",    icon:"💨", label:"管道效率S级", desc:"单日上厕所次数超过吃饭次数",
+    check: log => {
+      const t = new Date().toDateString();
+      const today = log.filter(e=>new Date(e.ts).toDateString()===t);
+      const toilets = today.filter(e=>e.type==="toilet").length;
+      const meals = today.filter(e=>e.type==="meal").length;
+      return meals>0 && toilets>meals;
+    }},
+  { id:"hydro",     icon:"🌊", label:"水文观测站",  desc:"单日喝水5次以上",
+    check: log => { const t=new Date().toDateString(); return log.filter(e=>e.type==="water"&&new Date(e.ts).toDateString()===t).length>=5; }},
+  { id:"fullday",   icon:"✅", label:"全勤实体",    desc:"单日完成五个基础操作",
+    check: log => {
+      const t = new Date().toDateString();
+      const today = log.filter(e=>new Date(e.ts).toDateString()===t);
+      return ["wake","water","meal","sleep","toilet"].every(type=>today.some(e=>e.type===type));
+    }},
+  { id:"thermody",  icon:"🌡️", label:"违反热力学",  desc:"烧水后超过2小时没有喝水",
+    check: log => {
+      for (let i=0; i<log.length; i++) {
+        if (log[i].type==="boil") {
+          const after = log.filter(e=>e.type==="water" && e.ts>log[i].ts && e.ts-log[i].ts<7200000);
+          if (after.length===0) {
+            // check if 2 hours have passed
+            if (Date.now()-log[i].ts>7200000) return true;
+          }
+        }
+      }
+      return false;
+    }},
+  { id:"schrodinger",icon:"📦", label:"薛定谔的一餐", desc:"同一分钟内记录了两次吃饭",
+    check: log => {
+      const meals = log.filter(e=>e.type==="meal");
+      for (let i=0; i<meals.length; i++)
+        for (let j=i+1; j<meals.length; j++)
+          if (Math.abs(meals[i].ts-meals[j].ts)<60000) return true;
+      return false;
+    }},
+
+  // 彩蛋成就（解锁改名）
+  { id:"streak7",   icon:"🔑", label:"协议覆写",    desc:"连续7天都有起床和睡觉记录",
+    check: log => {
+      const days = new Set(log.map(e=>new Date(e.ts).toDateString()));
+      let streak = 0;
+      for (let i=0; i<7; i++) {
+        const d = new Date(); d.setDate(d.getDate()-i);
+        const ds = d.toDateString();
+        if (!days.has(ds)) return false;
+        const dayLog = log.filter(e=>new Date(e.ts).toDateString()===ds);
+        if (!dayLog.some(e=>e.type==="wake") || !dayLog.some(e=>e.type==="sleep")) return false;
+        streak++;
+      }
+      return streak>=7;
+    }},
+];
+
+// ── 状态 ──────────────────────────────────────────────────────────────────────
+
+function load(key, def) { try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; } }
+
+let state = {
+  log:          load("hs_log", []),
+  points:       load("hs_pts", 0),
+  achUnlocked:  load("hs_ach", []),
+  shopRedeemed: load("hs_shop", {}),
+  entityName:   load("hs_name", "实体"),
+  screen: "main",
+  dialog: null,
+  renaming: false,
+  renameInput: "",
+};
+
+function save() {
+  localStorage.setItem("hs_log",  JSON.stringify(state.log));
+  localStorage.setItem("hs_pts",  JSON.stringify(state.points));
+  localStorage.setItem("hs_ach",  JSON.stringify(state.achUnlocked));
+  localStorage.setItem("hs_shop", JSON.stringify(state.shopRedeemed));
+  localStorage.setItem("hs_name", JSON.stringify(state.entityName));
+}
+
+function rand(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+function todaySeed() { return Math.floor(Date.now()/86400000); }
+
+function dailyShop() {
+  const seed = todaySeed();
+  const rng = n => { let x=Math.sin(seed+n)*10000; return x-Math.floor(x); };
+  return [...SHOP_POOL].sort((a,b)=>rng(a.id.charCodeAt(0))-rng(b.id.charCodeAt(0))).slice(0,4);
+}
+
+function fmt(ts, mode) {
+  const d = new Date(ts);
+  if (mode==="time") return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+// ── 操作 ──────────────────────────────────────────────────────────────────────
+
+function doAction(action) {
+  const entry = { type:action.type, label:action.label, ts:Date.now() };
+  state.log = [entry, ...state.log];
+  state.points += action.pts;
+
+  let achFound = null;
+  for (const ach of ACHIEVEMENTS) {
+    if (!state.achUnlocked.includes(ach.id) && ach.check(state.log)) {
+      state.achUnlocked = [...state.achUnlocked, ach.id];
+      achFound = ach;
+      break;
+    }
+  }
+
+  // 替换语料中的"实体"为当前称呼
+  let text = rand(WITNESS[action.type] || ["【系统记录】已存档。"]);
+  text = text.replace(/实体/g, state.entityName);
+
+  state.dialog = { type:"witness", text, pts:action.pts, ach:achFound };
+  save(); render();
+}
+
+function doRedeem(item) {
+  if (state.points < item.cost) return;
+  const key = `${todaySeed()}_${item.id}`;
+  if (state.shopRedeemed[key]) return;
+  state.points -= item.cost;
+  state.shopRedeemed = { ...state.shopRedeemed, [key]: true };
+  const pool = SHOP_WITNESS[item.id];
+  let text = pool ? rand(pool) : `【系统授权】${item.name}已激活。\n\n${item.desc}\n\n本系统备案在册，有效期今日。`;
+  text = text.replace(/实体/g, state.entityName);
+  state.dialog = { type:"shop", text, pts:0 };
+  save(); render();
+}
+
+function closeDialog() {
+  // 彩蛋触发后打开改名
+  if (state.dialog && state.dialog.rename) {
+    state.dialog = { ...state.dialog, rename: false, showRename: true };
+    render(); return;
+  }
+  state.dialog = null;
+  state.renaming = false;
+  render();
+}
+
+function confirmRename() {
+  const name = state.renameInput.trim();
+  if (name.length > 0 && name.length <= 8) {
+    state.entityName = name;
+    save();
+  }
+  state.dialog = null;
+  state.renaming = false;
+  state.renameInput = "";
+  render();
+}
+
+function setScreen(s) { state.screen = s; render(); }
+
+// ── 渲染 ──────────────────────────────────────────────────────────────────────
+
+function render() {
+  const app = document.getElementById("app");
+  const proUnlocked = state.points >= PRO_THRESHOLD || state.log.length >= 20;
+  const shop = dailyShop();
+
+  app.innerHTML = `
+    ${renderHeader(proUnlocked)}
+    ${renderNav()}
+    <div class="content">
+      ${state.screen==="main" ? renderMain(proUnlocked) : ""}
+      ${state.screen==="shop" ? renderShop(shop) : ""}
+      ${state.screen==="log"  ? renderLog() : ""}
+    </div>
+    ${state.dialog ? renderDialog() : ""}
+  `;
+
+  // 绑定事件
+  document.querySelectorAll(".action-btn").forEach(btn => {
+    const type = btn.dataset.type;
+    const action = [...BASIC_ACTIONS,...PRO_ACTIONS].find(a=>a.type===type);
+    if (action) btn.addEventListener("click", ()=>doAction(action));
+  });
+  document.querySelectorAll(".nav-btn").forEach(btn =>
+    btn.addEventListener("click", ()=>setScreen(btn.dataset.screen)));
+  document.querySelectorAll(".redeem-btn").forEach(btn => {
+    const item = SHOP_POOL.find(i=>i.id===btn.dataset.id);
+    if (item) btn.addEventListener("click", ()=>doRedeem(item));
+  });
+  const dialogBtn = document.querySelector(".dialog-btn");
+  if (dialogBtn) dialogBtn.addEventListener("click", closeDialog);
+  const overlay = document.querySelector(".overlay");
+  if (overlay) overlay.addEventListener("click", e=>{ if(e.target===overlay) closeDialog(); });
+  const renameInput = document.querySelector(".rename-input");
+  if (renameInput) {
+    renameInput.value = state.renameInput;
+    renameInput.addEventListener("input", e=>{ state.renameInput=e.target.value; });
+  }
+  const renameBtn = document.querySelector(".rename-confirm");
+  if (renameBtn) renameBtn.addEventListener("click", confirmRename);
+}
+
+function renderHeader(proUnlocked) {
+  return `
+    <div class="header">
+      <div>
+        <div class="header-title">HUMAN SIMULATOR</div>
+        <div class="header-sub">${proUnlocked ? `▸ 高级版运行中 · ${state.entityName}` : `▸ 基础版 · ${state.entityName} · ${PRO_THRESHOLD}积分解锁高级版`}</div>
+      </div>
+      <div>
+        <div class="header-pts">${state.points}</div>
+        <div class="header-pts-label">积分</div>
+      </div>
+    </div>`;
+}
+
+function renderNav() {
+  return `<div class="nav">${[["main","主界面"],["shop","积分商店"],["log","记录档案"]].map(([s,l])=>`
+    <button class="nav-btn ${state.screen===s?"active":""}" data-screen="${s}">${l}</button>
+  `).join("")}</div>`;
+}
+
+function renderMain(proUnlocked) {
+  const pct = Math.min(100, state.points/PRO_THRESHOLD*100);
+  const achs = ACHIEVEMENTS.filter(a=>state.achUnlocked.includes(a.id));
+  const hasRename = state.achUnlocked.includes("streak7");
+  return `
+    <div class="section-label">▸ 基础操作</div>
+    <div class="action-grid">
+      ${BASIC_ACTIONS.map(a=>`
+        <button class="action-btn" data-type="${a.type}">
+          <div class="icon">${a.icon}</div>
+          <div class="label">${a.label}</div>
+          <div class="pts">+${a.pts}pt</div>
+        </button>`).join("")}
+    </div>
+    ${proUnlocked ? `
+      <div class="section-label">▸ 高级操作 <span style="color:#2a5a7a;font-size:9px;margin-left:8px;">已解锁</span></div>
+      <div class="action-grid-3">
+        ${PRO_ACTIONS.map(a=>`
+          <button class="action-btn" data-type="${a.type}">
+            <div class="icon">${a.icon}</div>
+            <div class="label">${a.label}</div>
+            <div class="pts">+${a.pts}pt</div>
+          </button>`).join("")}
+      </div>` : `
+      <div class="lock-box">
+        <div class="lock-title">▸ 高级操作 · 锁定</div>
+        <div class="lock-sub">累计达到 ${PRO_THRESHOLD} 积分后永久解锁。</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>`}
+    ${hasRename ? `
+      <div style="margin-top:20px;padding:12px 16px;border:1px solid rgba(80,180,120,0.2);border-radius:8px;background:rgba(20,60,40,0.2);">
+        <div style="font-size:10px;color:#4ab870;letter-spacing:0.1em;margin-bottom:8px;">▸ 协议覆写 · 已解锁</div>
+        <div style="font-size:11px;color:#5a8a60;margin-bottom:10px;">实体可修改系统对其的识别标签。当前：${state.entityName}</div>
+        <button onclick="(function(){state.renaming=true;render();})()" style="padding:6px 14px;background:rgba(80,180,120,0.1);border:1px solid rgba(80,180,120,0.25);border-radius:6px;color:#6ab888;font-size:10px;cursor:pointer;font-family:inherit;">修改称呼</button>
+      </div>` : ""}
+    ${achs.length>0 ? `
+      <div style="margin-top:24px;">
+        <div class="section-label">▸ 已解锁成就</div>
+        <div class="ach-list">
+          ${achs.map(a=>`<div class="ach-tag"><span>${a.icon}</span><span>${a.label}</span></div>`).join("")}
+        </div>
+      </div>` : ""}
+    ${state.renaming ? renderRenamePanel() : ""}
+  `;
+}
+
+function renderRenamePanel() {
+  return `
+    <div style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;">
+      <div class="dialog">
+        <div class="dialog-type">▸ 协议覆写 · 识别标签修改</div>
+        <div class="dialog-text">本系统允许实体自定义识别标签。\n请输入新的称呼（最多8个字符）：</div>
+        <div class="rename-box">
+          <input class="rename-input" type="text" maxlength="8" placeholder="输入新称呼..." />
+          <button class="rename-confirm">确认覆写</button>
+        </div>
+        <button class="dialog-btn" style="margin-top:10px;">取消</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderShop(shop) {
+  const seed = todaySeed();
+  return `
+    <div class="section-label">▸ 今日供应</div>
+    <div style="font-size:11px;color:#2a4a6a;margin-bottom:16px;">每日刷新 · 当前积分 ${state.points}</div>
+    ${shop.map(item=>{
+      const key=`${seed}_${item.id}`;
+      const redeemed=!!state.shopRedeemed[key];
+      const canAfford=state.points>=item.cost;
+      return `
+        <div class="shop-item ${redeemed?"redeemed":""}">
+          <div class="shop-item-top">
+            <div class="shop-item-info">
+              <span class="shop-icon">${item.icon}</span>
+              <div>
+                <div class="shop-name">${item.name}</div>
+                <div class="shop-cost">${item.cost} 积分</div>
+              </div>
+            </div>
+            <button class="redeem-btn" data-id="${item.id}" ${redeemed||!canAfford?"disabled":""}>
+              ${redeemed?"已兑换":"兑换"}
+            </button>
+          </div>
+          <div class="shop-desc">${item.desc}</div>
+        </div>`;
+    }).join("")}`;
+}
+
+function renderLog() {
+  return `
+    <div class="section-label">▸ 存档记录 · 共 ${state.log.length} 条</div>
+    ${state.log.length===0
+      ? `<div style="font-size:12px;color:#2a4a6a;padding:20px 0;">暂无记录。回到主界面开始。</div>`
+      : state.log.map(e=>`
+          <div class="log-item">
+            <span class="log-date">${fmt(e.ts,"date")}</span>
+            <span class="log-time">${fmt(e.ts,"time")}</span>
+            <span class="log-label">${e.label}</span>
+            <span class="log-pts">+${PTS[e.type]||5}</span>
+          </div>`).join("")}`;
+}
+
+function renderDialog() {
+  const d = state.dialog;
+  return `
+    <div class="overlay">
+      <div class="dialog">
+        ${d.ach ? `
+          <div class="dialog-ach">
+            <div class="dialog-ach-label">▸ 隐藏成就解锁</div>
+            <div class="dialog-ach-row">
+              <span class="dialog-ach-icon">${d.ach.icon}</span>
+              <div>
+                <div class="dialog-ach-name">${d.ach.label}</div>
+                <div class="dialog-ach-desc">${d.ach.desc}</div>
+              </div>
+            </div>
+          </div>` : ""}
+        <div class="dialog-type">${d.type==="shop"?"▸ 系统授权":"▸ 系统见证"}</div>
+        <div class="dialog-text">${d.text}</div>
+        ${d.pts>0 ? `<div class="dialog-pts">+${d.pts} 积分已记入</div>` : ""}
+        ${d.showRename ? `
+          <div class="rename-box">
+            <div style="font-size:11px;color:#4ab870;margin-bottom:10px;">▸ 识别标签修改权限已激活</div>
+            <input class="rename-input" type="text" maxlength="8" placeholder="输入新称呼..." />
+            <button class="rename-confirm">确认覆写</button>
+          </div>` : ""}
+        <button class="dialog-btn">收到，继续</button>
+      </div>
+    </div>`;
+}
+
+render();
+</script>
+</body>
+</html>
