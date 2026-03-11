@@ -483,14 +483,16 @@ function doAction(action) {
   state.log = [entry, ...state.log];
   state.points += action.pts;
 
-  let achFound = null;
+  let newAchs = [];
   for (const ach of ACHIEVEMENTS) {
     if (!state.achUnlocked.includes(ach.id) && ach.check(state.log)) {
-      state.achUnlocked = [...state.achUnlocked, ach.id];
-      achFound = ach;
-      break;
+      newAchs.push(ach);
     }
   }
+  if (newAchs.length > 0) {
+    state.achUnlocked = [...state.achUnlocked, ...newAchs.map(a=>a.id)];
+  }
+  let achFound = newAchs.length > 0 ? newAchs[0] : null;
 
   // 替换语料中的"实体"为当前称呼
   let text = rand(WITNESS[action.type] || ["【系统记录】已存档。"]);
